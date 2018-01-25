@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import imp
 import json
 import subprocess
 import sys
@@ -283,20 +284,23 @@ class SkillManager(Thread):
         else:
             LOG.error("Unable to invoke Mycroft Skill Manager: " + MSM_BIN)
 
-    def _load_or_reload_skill(self, skill_folder):
+    def _load_or_reload_skill(self, package):
         """
             Check if unloaded skill or changed skill needs reloading
             and perform loading if necessary.
         """
-        if skill_folder not in self.loaded_skills:
-            self.loaded_skills[skill_folder] = {
-                "id": hash(os.path.join(SKILLS_DIR, skill_folder))
+        if package not in self.loaded_skills:
+            self.loaded_skills[package] = {
+                "id": hash(os.path.join(SKILLS_DIR, package))
             }
-        skill = self.loaded_skills.get(skill_folder)
-        skill["path"] = os.path.join(SKILLS_DIR, skill_folder)
+        skill = self.loaded_skills.get(package)
+        skill["path"] = os.path.join(SKILLS_DIR, package)
 
-        # check if folder is a skill (must have __init__.py)
-        if not MainModule + ".py" in os.listdir(skill["path"]):
+        # check if folder is a skill (i.e. find_module does not raise an error)
+        try:
+            imp.find_module(package, [SKILLS_DIR])
+        except ImportError as e:
+            LOG.error("{0} is not a skill".format(package))
             return
 
         # getting the newest modified date of skill
@@ -313,7 +317,7 @@ class SkillManager(Thread):
             if not skill["instance"].reload_skill:
                 return
 
-            LOG.debug("Reloading Skill: " + skill_folder)
+            LOG.debug("Reloading Skill: " + package)
             # removing listeners and stopping threads
             skill["instance"].shutdown()
 
@@ -332,7 +336,7 @@ class SkillManager(Thread):
         # (Re)load the skill from disk
         with self.__msm_lock:  # Make sure msm isn't running
             skill["loaded"] = True
-            desc = create_skill_descriptor(skill["path"])
+            desc = create_skill_descriptor(SKILLS_DIR, package)
             skill["instance"] = load_skill(desc,
                                            self.ws, skill["id"],
                                            BLACKLISTED_SKILLS)
@@ -350,11 +354,11 @@ class SkillManager(Thread):
         """
         if exists(SKILLS_DIR):
             # checking skills dir and getting all priority skills there
-            skill_list = [folder for folder in filter(
+            skill_list = [package for package in filter(
                 lambda x: os.path.isdir(os.path.join(SKILLS_DIR, x)),
-                os.listdir(SKILLS_DIR)) if folder in skills_to_load]
-            for skill_folder in skill_list:
-                self._load_or_reload_skill(skill_folder)
+                os.listdir(SKILLS_DIR)) if package in skills_to_load]
+            for package in skill_list:
+                self._load_or_reload_skill(package)
 
     def run(self):
         """ Load skills and update periodically from disk and internet """

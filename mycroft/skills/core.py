@@ -141,7 +141,7 @@ def load_skill(skill_descriptor, emitter, skill_id, BLACKLISTED_SKILLS=None):
             LOG.info("SKILL IS BLACKLISTED " + skill_descriptor["name"])
             return None
         skill_module = imp.load_module(
-            skill_descriptor["name"] + MainModule, *skill_descriptor["info"])
+            skill_descriptor["name"], *skill_descriptor["info"])
         if (hasattr(skill_module, 'create_skill') and
                 callable(skill_module.create_skill)):
             # v2 skills framework
@@ -150,7 +150,7 @@ def load_skill(skill_descriptor, emitter, skill_id, BLACKLISTED_SKILLS=None):
             skill.settings.load_skill_settings_from_file()
             skill.bind(emitter)
             skill.skill_id = skill_id
-            skill.load_data_files(dirname(skill_descriptor['info'][1]))
+            skill.load_data_files(skill_descriptor['info'][1])
             # Set up intent handlers
             skill.initialize()
             skill._register_decorated()
@@ -177,9 +177,9 @@ def load_skill(skill_descriptor, emitter, skill_id, BLACKLISTED_SKILLS=None):
     return None
 
 
-def create_skill_descriptor(skill_folder):
-    info = imp.find_module(MainModule, [skill_folder])
-    return {"name": basename(skill_folder), "info": info}
+def create_skill_descriptor(skills_folder, skill):
+    info = imp.find_module(skill, [skills_folder])
+    return {"name": skill, "info": info}
 
 
 def get_handler_name(handler):
